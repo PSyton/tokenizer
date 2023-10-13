@@ -1,4 +1,4 @@
-module github.com/bzick/tokenizer
+module github.com/psyton/tokenizer
 
 go 1.20
 
