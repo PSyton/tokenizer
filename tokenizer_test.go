@@ -1,54 +1,79 @@
 package tokenizer
 
 import (
-	"github.com/stretchr/testify/require"
 	"testing"
+
+	"github.com/stretchr/testify/require"
 )
 
-func TestTokenize(t *testing.T) {
-	type item struct {
-		str   string
-		token Token
+type tokenValidators []func(assertions *require.Assertions, stream *Stream)
+
+func checkTokenKey(key TokenKey) func(assertions *require.Assertions, stream *Stream) {
+	return func(assertions *require.Assertions, stream *Stream) {
+		assertions.True(stream.IsValid())
+		assertions.NotNil(stream.CurrentToken())
+		assertions.Equal(key, stream.CurrentToken().key)
 	}
-	tokenizer := New()
+}
+
+func checkTokenStringSettings(expected *StringSettings) func(assertions *require.Assertions, stream *Stream) {
+	return func(assertions *require.Assertions, stream *Stream) {
+		assertions.True(stream.IsValid())
+		assertions.NotNil(stream.CurrentToken())
+		assertions.Equal(expected, stream.CurrentToken().string)
+	}
+}
+
+func checkEmptyStream() func(assertions *require.Assertions, stream *Stream) {
+	return func(assertions *require.Assertions, stream *Stream) {
+		assertions.False(stream.IsValid())
+	}
+}
+
+func TestTokenize(t *testing.T) {
 	condTokenKey := TokenKey(10)
 	wordTokenKey := TokenKey(11)
 	dquoteKey := TokenKey(14)
+	tokenizer := New()
 	tokenizer.DefineTokens(condTokenKey, []string{">=", "<=", "==", ">", "<"})
 	tokenizer.DefineTokens(wordTokenKey, []string{"or", "или"})
 	quote := tokenizer.DefineStringToken(dquoteKey, `"`, `"`).SetEscapeSymbol('\\')
-	data := []item{
-		{"one", Token{key: TokenKeyword}},
-		{"два", Token{key: TokenKeyword}},
-		{"1", Token{key: TokenInteger}},
-		{"2.3", Token{key: TokenFloat}},
-		{"2.", Token{key: TokenFloat}},
-		{"2.3e4", Token{key: TokenFloat}},
-		{"2.3e-4", Token{key: TokenFloat}},
-		{"2.3E+4", Token{key: TokenFloat}},
-		{"2e4", Token{key: TokenFloat}},
-		{"\"one\"", Token{key: TokenString, string: quote}},
-		{"\"one two\"", Token{key: TokenString, string: quote}},
-		{"\"два три\"", Token{key: TokenString, string: quote}},
-		{"\"one\\\" two\"", Token{key: TokenString, string: quote}},
-		{"\"\"", Token{key: TokenString, string: quote}},
-		{">=", Token{key: condTokenKey}},
-		{"<", Token{key: condTokenKey}},
-		{"=", Token{key: TokenUnknown}},
-		{"or", Token{key: wordTokenKey}},
-		{"или", Token{key: wordTokenKey}},
+
+	var tests = []struct {
+		input      string
+		validators tokenValidators
+	}{
+		{"", tokenValidators{checkEmptyStream()}},
+		{"\n", tokenValidators{checkEmptyStream()}},
+		{" \n\r", tokenValidators{checkEmptyStream()}},
+		{"one", tokenValidators{checkTokenKey(TokenKeyword)}},
+		{"два", tokenValidators{checkTokenKey(TokenKeyword)}},
+		{"1", tokenValidators{checkTokenKey(TokenInteger)}},
+		{"2.3", tokenValidators{checkTokenKey(TokenFloat)}},
+		{"2.", tokenValidators{checkTokenKey(TokenFloat)}},
+		{"2.3e4", tokenValidators{checkTokenKey(TokenFloat)}},
+		{"2.3e-4", tokenValidators{checkTokenKey(TokenFloat)}},
+		{"2.3E+4", tokenValidators{checkTokenKey(TokenFloat)}},
+		{"2e4", tokenValidators{checkTokenKey(TokenFloat)}},
+		{"\"one\"", tokenValidators{checkTokenKey(TokenString), checkTokenStringSettings(quote)}},
+		{"\"one two\"", tokenValidators{checkTokenKey(TokenString), checkTokenStringSettings(quote)}},
+		{"\"два три\"", tokenValidators{checkTokenKey(TokenString), checkTokenStringSettings(quote)}},
+		{"\"one\\\" two\"", tokenValidators{checkTokenKey(TokenString), checkTokenStringSettings(quote)}},
+		{"\"\"", tokenValidators{checkTokenKey(TokenString), checkTokenStringSettings(quote)}},
+		{">=", tokenValidators{checkTokenKey(condTokenKey)}},
+		{"<", tokenValidators{checkTokenKey(condTokenKey)}},
+		{"=", tokenValidators{checkTokenKey(TokenUnknown)}},
+		{"or", tokenValidators{checkTokenKey(wordTokenKey)}},
+		{"или", tokenValidators{checkTokenKey(wordTokenKey)}},
 	}
 
-	for _, v := range data {
-		stream := tokenizer.ParseBytes([]byte(v.str))
-		expected := &v.token
-		expected.value = []byte(v.str)
-		actual := &Token{
-			value:  stream.current.value,
-			key:    stream.current.key,
-			string: stream.current.string,
-		}
-		require.Equalf(t, expected, actual, "parse %s: %s", v.str, stream.current)
+	for _, test := range tests {
+		t.Run(test.input, func(t *testing.T) {
+			a := require.New(t)
+			for _, validate := range test.validators {
+				validate(a, tokenizer.ParseBytes([]byte(test.input)))
+			}
+		})
 	}
 }
 

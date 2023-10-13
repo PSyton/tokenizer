@@ -87,9 +87,8 @@ func (s *Stream) String() string {
 func (s *Stream) GetParsedLength() int {
 	if s.p == nil {
 		return s.parsed
-	} else {
-		return s.p.parsed + s.p.pos
 	}
+	return s.p.parsed + s.p.pos
 }
 
 // GoNext moves stream pointer to the next token.
@@ -153,7 +152,7 @@ func (s *Stream) GoTo(id int) *Stream {
 // IsValid checks if stream is valid.
 // This means that the pointer has not reached the end of the stream.
 func (s *Stream) IsValid() bool {
-	return s.current != undefToken
+	return s.current != nil && s.current.key != TokenUndef && s.current != undefToken
 }
 
 // IsNextSequence checks if these are next tokens in exactly the same sequence as specified.
