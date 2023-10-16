@@ -3,9 +3,14 @@ package tokenizer
 import (
 	"bytes"
 	"fmt"
-	"github.com/stretchr/testify/require"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/require"
+)
+
+const (
+	TCategory = 1
 )
 
 func TestStream(t *testing.T) {
@@ -97,6 +102,22 @@ func TestStream(t *testing.T) {
 	require.Equal(t, float64(0), stream.CurrentToken().ValueFloat())
 
 	stream.Close()
+}
+
+func TestCustomToken(t *testing.T) {
+	r := require.New(t)
+
+	tokenizer := New()
+	tokenizer.DefineFullTokens(TCategory, []string{"ab"})
+	stream := tokenizer.ParseString(" abcd ab")
+
+	r.True(stream.IsValid())
+	r.False(stream.CurrentToken().Is(TCategory))
+	r.True(stream.CurrentToken().Is(TokenKeyword))
+	r.Equal("abcd", stream.CurrentToken().ValueString())
+	stream.GoNext()
+	r.True(stream.IsValid())
+	r.True(stream.CurrentToken().Is(TCategory))
 }
 
 func TestHistory(t *testing.T) {

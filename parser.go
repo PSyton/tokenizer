@@ -346,8 +346,20 @@ func (p *parsing) parseNumber() bool {
 	return true
 }
 
+func (p *parsing) isWhitespace(pos int) bool {
+	if p.ensureBytes(pos - p.pos + 1) {
+		for _, w := range p.t.wSpaces {
+			if p.str[pos] == w {
+				return true
+			}
+		}
+		return false
+	}
+	return true
+}
+
 // match compare next bytes from data with `r`
-func (p *parsing) match(r []byte, seek bool) bool {
+func (p *parsing) match(r []byte, seek bool, checkWhitespaces bool) bool {
 	if r[0] == p.curr {
 		if len(r) > 1 {
 			if p.ensureBytes(len(r) - 1) {
@@ -356,6 +368,9 @@ func (p *parsing) match(r []byte, seek bool) bool {
 					if r[i] != p.str[p.pos+i] {
 						return false
 					}
+				}
+				if checkWhitespaces && !p.isWhitespace(p.pos+i) {
+					return false
 				}
 				if seek {
 					p.pos += i - 1
@@ -378,7 +393,7 @@ func (p *parsing) parseQuote() bool {
 	var quote *StringSettings
 	var start = p.pos
 	for _, q := range p.t.quotes {
-		if p.match(q.StartToken, true) {
+		if p.match(q.StartToken, true, false) {
 			quote = q
 			break
 		}
@@ -395,13 +410,13 @@ func (p *parsing) parseQuote() bool {
 			escapes = false
 		} else if p.curr == quote.EscapeSymbol {
 			escapes = true
-		} else if p.match(quote.EndToken, true) {
+		} else if p.match(quote.EndToken, true, false) {
 			break
 		} else if quote.Injects != nil {
 			loop := true
 			for _, inject := range quote.Injects {
 				for _, token := range p.t.tokens[inject.StartKey] {
-					if p.match(token.Token, true) {
+					if p.match(token.Token, true, false) {
 						p.token.key = TokenStringFragment
 						p.token.value = p.str[start : p.pos-len(token.Token)]
 						p.emmitToken()
@@ -443,7 +458,7 @@ func (p *parsing) parseToken() bool {
 		if toks != nil {
 			start := p.pos
 			for _, t := range toks {
-				if p.match(t.Token, true) {
+				if p.match(t.Token, true, t.IsFull) {
 					p.token.key = t.Key
 					p.token.offset = p.offset + start
 					p.token.value = t.Token

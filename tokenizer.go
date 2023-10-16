@@ -60,6 +60,8 @@ type tokenRef struct {
 	Key TokenKey
 	// Token value as is. Should be unique.
 	Token []byte
+	// Require that token must be surrounded by whitespaces
+	IsFull bool
 }
 
 // QuoteInjectSettings describes open injection token and close injection token.
@@ -159,6 +161,35 @@ func (t *Tokenizer) AllowNumbersInKeyword() *Tokenizer {
 // DefineTokens add custom token.
 // There `key` unique is identifier of `tokens`, `tokens` — slice of string of tokens.
 // If key already exists tokens will be rewritten.
+func (t *Tokenizer) DefineFullTokens(key TokenKey, tokens []string) *Tokenizer {
+	var tks []*tokenRef
+	if key < 1 {
+		return t
+	}
+	for _, token := range tokens {
+		ref := tokenRef{
+			Key:    key,
+			Token:  s2b(token),
+			IsFull: true,
+		}
+		head := ref.Token[0]
+		tks = append(tks, &ref)
+		if t.index[head] == nil {
+			t.index[head] = []*tokenRef{}
+		}
+		t.index[head] = append(t.index[head], &ref)
+		sort.Slice(t.index[head], func(i, j int) bool {
+			return len(t.index[head][i].Token) > len(t.index[head][j].Token)
+		})
+	}
+	t.tokens[key] = tks
+
+	return t
+}
+
+// DefineTokens add custom token.
+// There `key` unique is identifier of `tokens`, `tokens` — slice of string of tokens.
+// If key already exists tokens will be rewritten.
 func (t *Tokenizer) DefineTokens(key TokenKey, tokens []string) *Tokenizer {
 	var tks []*tokenRef
 	if key < 1 {
@@ -187,10 +218,10 @@ func (t *Tokenizer) DefineTokens(key TokenKey, tokens []string) *Tokenizer {
 // DefineStringToken defines a token string.
 // For example, a piece of data surrounded by quotes: "string in quotes" or 'string on sigle quotes'.
 // Arguments startToken and endToken defines open and close "quotes".
-//  - t.DefineStringToken("`", "`") - parse string "one `two three`" will be parsed as
-// 			[{key: TokenKeyword, value: "one"}, {key: TokenString, value: "`two three`"}]
-//  - t.DefineStringToken("//", "\n") - parse string "parse // like comment\n" will be parsed as
-//			[{key: TokenKeyword, value: "parse"}, {key: TokenString, value: "// like comment"}]
+//   - t.DefineStringToken("`", "`") - parse string "one `two three`" will be parsed as
+//     [{key: TokenKeyword, value: "one"}, {key: TokenString, value: "`two three`"}]
+//   - t.DefineStringToken("//", "\n") - parse string "parse // like comment\n" will be parsed as
+//     [{key: TokenKeyword, value: "parse"}, {key: TokenString, value: "// like comment"}]
 func (t *Tokenizer) DefineStringToken(key TokenKey, startToken, endToken string) *StringSettings {
 	q := &StringSettings{
 		Key:        key,
